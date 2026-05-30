@@ -2,159 +2,425 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Recognition Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lava Maze - Voice Command Game</title>
     <style>
+        /* 基本スタイリング：黒背景とレトロフォント */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            text-align: center;
-            padding: 20px;
-            background-color: #f5f5f7;
-            color: #333;
-        }
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 30px;
-        }
-        .btn-container {
-            margin-bottom: 40px;
-        }
-        #micBtn {
-            font-size: 1.2rem;
-            padding: 20px 40px;
-            border: none;
-            border-radius: 30px;
-            background-color: #0071e3;
-            color: white;
-            cursor: pointer;
-            width: 80%;
-            max-width: 300px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: background-color 0.2s;
-        }
-        #micBtn.recording {
-            background-color: #ff3b30;
-            animation: pulse 1.5s infinite;
-        }
-        .result-section {
-            background-color: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 400px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .label {
-            font-size: 0.9rem;
-            color: #86868b;
-            margin-bottom: 5px;
-        }
-        #judgmentResult {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #1d1d1f;
-            min-height: 3rem;
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
             display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* ゲームコンテナ */
+        #game-container {
+            display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
+            flex-grow: 1;
+            width: 100%;
+            max-width: 500px;
         }
-        #originalResult {
-            font-size: 1.1rem;
-            color: #515154;
-            min-height: 1.5rem;
-            word-break: break-all;
+
+        /* 5x7 マップグリッド */
+        #map {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(7, 1fr);
+            gap: 2px;
+            width: 90vw;
+            max-width: 350px;
+            aspect-ratio: 5 / 7;
+            background-color: #222;
+            padding: 4px;
+            border: 4px solid #444;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            position: relative;
         }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.03); }
-            100% { transform: scale(1); }
+
+        /* タイルの基本設定 */
+        .tile {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 石のタイル（進める場所） */
+        .tile.stone {
+            background-color: #777;
+            border: 1px solid #555;
+        }
+
+        /* 溶岩のタイル（ゲームオーバー） */
+        .tile.lava {
+            background-color: #d32f2f;
+            border: 1px solid #b71c1c;
+            animation: lava-pulse 1.5s infinite alternate;
+        }
+
+        @keyframes lava-pulse {
+            0% { background-color: #b71c1c; }
+            100% { background-color: #ff5722; }
+        }
+
+        /* スタートとゴールの特殊表示 */
+        .tile.start::after {
+            content: "S";
+            position: absolute;
+            color: #00ffff;
+            font-weight: bold;
+            font-size: 14px;
+            bottom: 2px;
+            right: 4px;
+        }
+
+        .tile.goal::after {
+            content: "G";
+            position: absolute;
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 14px;
+            top: 2px;
+            left: 4px;
+        }
+
+        /* 主人公キャラクター */
+        #player {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            /* 画像ファイル名は指定されたもの。HTMLと同じディレクトリに配置すること */
+            background-image: url('pipo-nekonin001.png');
+            background-repeat: no-repeat;
+            transition: left 0.2s ease, top 0.2s ease;
+            z-index: 10;
+            /* タイル内の中央に配置するための補正 */
+            transform: translate(-50%, -50%);
+        }
+
+        /* マイク起動タップ領域（画面下部 1/4） */
+        #mic-area {
+            width: 100%;
+            height: 25vh;
+            background-color: #222;
+            border-top: 4px solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #mic-area.listening {
+            background-color: #b71c1c;
+            animation: mic-pulse 2s infinite;
+        }
+
+        @keyframes mic-pulse {
+            0% { opacity: 0.9; }
+            50% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+
+        #mic-status-text {
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        #mic-sub-text {
+            font-size: 12px;
+            color: #aaa;
         }
     </style>
 </head>
 <body>
 
-    <h1>음성 인식 테스트 (音声認識テスト)</h1>
-
-    <div class="btn-container">
-        <button id="micBtn">タップして話す</button>
+    <div id="game-container">
+        <div id="map">
+            <div id="player"></div>
+        </div>
     </div>
 
-    <div class="result-section">
-        <div class="label">判定結果 (앞, 뒤, 오른쪽, 왼쪽)</div>
-        <div id="judgmentResult">-</div>
-    </div>
-
-    <div class="result-section">
-        <div class="label">オリジナル聞き取り結果 (デバッグ用)</div>
-        <div id="originalResult">-</div>
+    <div id="mic-area" id="mic-touch-zone">
+        <div id="mic-status-text">TOUCH TO SPEAK</div>
+        <div id="mic-sub-text">위 / 아래 / 오른쪽 / 왼쪽</div>
     </div>
 
     <script>
-        const micBtn = document.getElementById('micBtn');
-        const judgmentResult = document.getElementById('judgmentResult');
-        const originalResult = document.getElementById('originalResult');
+        // =========================================================================
+        // 1. マップデータ定義（直接書き込み枠）
+        // =========================================================================
+        // 0: 石のタイル(進める), _: 溶岩のタイル(ゲームオーバー)
+        const mapDataString = `
+__0__
+__00_
+0000_
+0____
+000__
+__0__
+__0__
+`.trim().split('\n');
 
-        // Web Speech API の初期化
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const MAP_COLS = 5;
+        const MAP_ROWS = 7;
         
-        if (!SpeechRecognition) {
-            alert('このブラウザはWeb Speech APIに対応していません。別のブラウザ（iOS Safari、Android Chromeなど）を試してください。');
-        } else {
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'ko-KR'; // 韓国語に設定
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
+        // スタートとゴールの座標定義
+        const START_POS = { x: 2, y: 6 };
+        const GOAL_POS = { x: 2, y: 0 };
 
-            let isRecording = false;
+        // 現在のプレイヤー座標
+        let playerX = START_POS.x;
+        let playerY = START_POS.y;
 
-            micBtn.addEventListener('click', () => {
-                if (!isRecording) {
-                    recognition.start();
-                } else {
-                    recognition.stop();
+        // キャラクターの向き（0:下, 1:左, 2:右, 3:上）※画像シートの行に対応
+        let playerDir = 3; 
+        // アニメーション用ステップインデックス
+        const animSequence = [0, 1, 2, 1];
+        let animIndex = 0;
+
+        // ゲーム状態フラグ
+        let isGameOver = false;
+        let isGameCleared = false;
+        let isListening = false;
+
+        // 音声認識オブジェクト
+        let recognition = null;
+
+        // DOM要素の取得
+        const mapElement = document.getElementById('map');
+        const playerElement = document.getElementById('player');
+        const micArea = document.getElementById('mic-area');
+        const micStatusText = document.getElementById('mic-status-text');
+
+        // =========================================================================
+        // 2. マップ及び初期配置の構築
+        // =========================================================================
+        function initMap() {
+            // 既存のタイル要素をクリア（プレイヤー以外）
+            const tiles = mapElement.querySelectorAll('.tile');
+            tiles.forEach(tile => tile.remove());
+
+            for (let y = 0; y < MAP_ROWS; y++) {
+                for (let x = 0; x < MAP_COLS; x++) {
+                    const tileType = mapDataString[y] ? mapDataString[y][x] : '_';
+                    const tile = document.createElement('div');
+                    tile.classList.add('tile');
+                    
+                    if (tileType === '0') {
+                        tile.classList.add('stone');
+                    } else {
+                        tile.classList.add('lava');
+                    }
+
+                    if (x === START_POS.x && y === START_POS.y) {
+                        tile.classList.add('start');
+                    }
+                    if (x === GOAL_POS.x && y === GOAL_POS.y) {
+                        tile.classList.add('goal');
+                    }
+
+                    mapElement.appendChild(tile);
                 }
-            });
+            }
+            updatePlayerPosition();
+        }
+
+        // プレイヤーの座標・ビジュアル位置を更新
+        function updatePlayerPosition() {
+            // CSS Grid内のパーセンテージ換算でプレイヤーの位置を決定
+            const tileWidthPercent = 100 / MAP_COLS;
+            const tileHeightPercent = 100 / MAP_ROWS;
+
+            const leftPos = (playerX * tileWidthPercent) + (tileWidthPercent / 2);
+            const topPos = (playerY * tileHeightPercent) + (tileHeightPercent / 2);
+
+            playerElement.style.left = `${leftPos}%`;
+            playerElement.style.top = `${topPos}%`;
+
+            updatePlayerSprite();
+        }
+
+        // スプライト画像の表示切り替え（方向、足踏みフレーム）
+        function updatePlayerSprite() {
+            const spriteWidth = 32;
+            const spriteHeight = 32;
+
+            // X軸：アニメーションシーケンスに基づく列番号 (0, 1, 2)
+            const col = animSequence[animIndex];
+            // Y軸：現在の方向番号 (0:下, 1:左, 2:右, 3:上)
+            const row = playerDir;
+
+            const posX = -(col * spriteWidth);
+            const posY = -(row * spriteHeight);
+
+            playerElement.style.backgroundPosition = `${posX}px ${posY}px`;
+        }
+
+        // 常時足踏みアニメーションのタイマー駆動
+        setInterval(() => {
+            if (isGameOver || isGameCleared) return;
+            animIndex = (animIndex + 1) % animSequence.length;
+            updatePlayerSprite();
+        }, 200);
+
+        // =========================================================================
+        // 3. 移動・判定ロジック
+        // =========================================================================
+        function processCommand(command) {
+            if (isGameOver || isGameCleared) return;
+
+            let nextX = playerX;
+            let nextY = playerY;
+            let nextDir = playerDir;
+
+            // コマンドの識別と方向変更・移動座標計算
+            if (command.includes('위')) {
+                nextDir = 3;
+                nextY -= 1;
+            } else if (command.includes('아래')) {
+                nextDir = 0;
+                nextY += 1;
+            } else if (command.includes('오른쪽')) {
+                nextDir = 2;
+                nextX += 1;
+            } else if (command.includes('왼쪽')) {
+                nextDir = 1;
+                nextX -= 1;
+            } else {
+                return; // 該当するコマンドがなければ何もしない
+            }
+
+            // ① まずその向きを向く
+            playerDir = nextDir;
+            updatePlayerSprite();
+
+            // ② その向きに1マス進む（少しディレイをかけるとより自然だが、ここでは即時移動処理を行う）
+            // 画面境界チェック
+            if (nextX >= 0 && nextX < MAP_COLS && nextY >= 0 && nextY < MAP_ROWS) {
+                playerX = nextX;
+                playerY = nextY;
+            } else {
+                // マップの外に出た場合は溶岩に落ちたとみなす
+                handleGameOver();
+                return;
+            }
+
+            updatePlayerPosition();
+            checkTileCondition();
+        }
+
+        // 移動後の現在地判定
+        function checkTileCondition() {
+            // ゴール判定
+            if (playerX === GOAL_POS.x && playerY === GOAL_POS.y) {
+                handleGameClear();
+                return;
+            }
+
+            // 溶岩判定
+            const currentTileType = mapDataString[playerY][playerX];
+            if (currentTileType !== '0') {
+                handleGameOver();
+            }
+        }
+
+        function handleGameOver() {
+            isGameOver = true;
+            alert("GAME OVER\n용암에 빠졌습니다.");
+            resetGame();
+        }
+
+        function handleGameClear() {
+            isGameCleared = true;
+            alert("GAME CLEAR!\n축하합니다!");
+            resetGame();
+        }
+
+        function resetGame() {
+            playerX = START_POS.x;
+            playerY = START_POS.y;
+            playerDir = 3;
+            isGameOver = false;
+            isGameCleared = false;
+            updatePlayerPosition();
+        }
+
+        // =========================================================================
+        // 4. 音声認識（Web Speech API）の実装
+        // =========================================================================
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                micStatusText.innerText = "NOT SUPPORTED";
+                alert("이 브라우저는 음성 인식을 지원하지 않습니다. (Safari/Chrome 권장)");
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR';        // 韓国語に設定
+            recognition.continuous = true;     // 連続認識を有効化（挙動2）
+            recognition.interimResults = false; // 確定結果のみ取得
 
             recognition.onstart = () => {
-                isRecording = true;
-                micBtn.textContent = '聞き取り中...';
-                micBtn.classList.add('recording');
-                judgmentResult.textContent = '-';
-                originalResult.textContent = '-';
-            };
-
-            recognition.onend = () => {
-                isRecording = false;
-                micBtn.textContent = 'タップして話す';
-                micBtn.classList.remove('recording');
-            };
-
-            recognition.onerror = (event) => {
-                console.error(event.error);
-                originalResult.textContent = `エラーが発生しました: ${event.error}`;
+                isListening = true;
+                micArea.classList.add('listening');
+                micStatusText.innerText = "LISTENING...";
             };
 
             recognition.onresult = (event) => {
-                const speechResult = event.results[0][0].transcript.trim();
-                
-                // デバッグ用にオリジナルを表示
-                originalResult.textContent = speechResult;
-                
-                // 判定ロジック
-                // 表記の揺らぎ（スペースの有無など）を考慮し、includesで判定
-                if (speechResult.includes('앞')) {
-                    judgmentResult.textContent = '앞';
-                } else if (speechResult.includes('뒤')) {
-                    judgmentResult.textContent = '뒤';
-                } else if (speechResult.includes('오른쪽')) {
-                    judgmentResult.textContent = '오른쪽';
-                } else if (speechResult.includes('왼쪽')) {
-                    judgmentResult.textContent = '왼쪽';
+                const resultIndex = event.resultIndex;
+                const transcript = event.results[resultIndex][0].transcript.trim();
+                console.log("Recognized:", transcript);
+                processCommand(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+            };
+
+            recognition.onend = () => {
+                // ユーザーが意図して停止していない場合は、自動で再開を試みる（挙動2の維持）
+                if (isListening) {
+                    recognition.start();
                 } else {
-                    judgmentResult.textContent = '該当なし（どれでもない）';
+                    micArea.classList.remove('listening');
+                    micStatusText.innerText = "TOUCH TO SPEAK";
                 }
             };
         }
+
+        // マイク領域タップ時のトグル処理
+        micArea.addEventListener('click', () => {
+            if (!recognition) return;
+
+            if (!isListening) {
+                recognition.start();
+            } else {
+                isListening = false;
+                recognition.stop();
+            }
+        });
+
+        // 起動処理
+        window.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            initSpeechRecognition();
+        });
     </script>
 </body>
 </html>
