@@ -23,10 +23,10 @@
             background: #222; padding: 4px; border: 4px solid #444;
         }
         .tile { width: 100%; height: 100%; position: relative; z-index: 1; }
-        .stone { background: #777; border: 1px solid #555; }
-        .lava { background: #d32f2f; border: 1px solid #b71c1c; animation: pulse 1.5s infinite alternate; }
-        @keyframes pulse { to { background: #ff5722; } }
-        .start-tile::after { content: "S"; position: absolute; color: #0ff; bottom: 2px; right: 4px; font-weight: bold; }
+        .ground { background: linear-gradient(to top, #777 0%, #777 5%, transparent 5%, transparent 100%); }
+        .empty { background: transparent; }
+        .ladder { background: repeating-linear-gradient(0deg, transparent, transparent 10px, #aaa 10px, #aaa 12px), linear-gradient(90deg, transparent 20%, #aaa 20%, #aaa 25%, transparent 25%, transparent 75%, #aaa 75%, #aaa 80%, transparent 80%); }
+        .start-tile::after { content: "S"; position: absolute; color: #0ff; top: 2px; right: 4px; font-weight: bold; }
         .goal-tile::after { content: "G"; position: absolute; color: #fd0; top: 2px; left: 4px; font-weight: bold; }
         
         #player {
@@ -83,19 +83,20 @@
     </div>
 
     <script>
+        // # 2026/05/30 15:17 Geminiで機能追加 サイドビューパズルアクション化、重力・梯子の導入、音声認識自動起動
         // # 2026/05/30 14:40 Geminiで機能追加 キャラクターの拡大、判定タイミングの遅延、4段階消滅エフェクト、デバッグモード
 
         const mapStr = `
-__0__
-__00_
-0000_
-0____
-000__
-__0__
-__0__`.trim().split('\n');
+G____
+0000#
+___0#
+#0#_#
+#_000
+0#__0
+__#_S`.trim().split('\n');
 
         const COLS = 5, ROWS = 7;
-        const START = { x: 2, y: 6 }, GOAL = { x: 2, y: 0 };
+        const START = { x: 4, y: 6 }, GOAL = { x: 0, y: 0 };
         let px = START.x, py = START.y, pDir = 3;
         let animIdx = 0, animSeq = [0, 1, 2, 1];
         let state = 'start'; 
@@ -112,7 +113,9 @@ __0__`.trim().split('\n');
             for (let y = 0; y < ROWS; y++) {
                 for (let x = 0; x < COLS; x++) {
                     let div = document.createElement('div');
-                    div.className = 'tile ' + (mapStr[y][x] === '0' ? 'stone' : 'lava');
+                    let char = mapStr[y][x];
+                    let typeClass = (char === '_' || char === 'S' || char === 'G') ? 'ground' : (char === '#' ? 'ladder' : 'empty');
+                    div.className = 'tile ' + typeClass;
                     if (x === START.x && y === START.y) div.classList.add('start-tile');
                     if (x === GOAL.x && y === GOAL.y) div.classList.add('goal-tile');
                     mapEl.appendChild(div);
@@ -146,6 +149,10 @@ __0__`.trim().split('\n');
             playerEl.style.opacity = 1;
             state = 'play';
             initSpeech();
+            if (recognition && !isListening) {
+                isListening = true;
+                recognition.start();
+            }
         }
 
         function resetGame() {
@@ -162,8 +169,17 @@ __0__`.trim().split('\n');
             if (state !== 'play') return;
             let nx = px, ny = py;
 
-            if (cmd.includes('위')) { pDir = 3; ny--; }
-            else if (cmd.includes('아래')) { pDir = 0; ny++; }
+            let onLadder = (mapStr[py][px] === '#');
+            let ladderBelow = (py + 1 < ROWS && mapStr[py + 1][px] === '#');
+
+            if (cmd.includes('위')) { 
+                if (!onLadder) return;
+                pDir = 3; ny--; 
+            }
+            else if (cmd.includes('아래')) { 
+                if (!ladderBelow) return;
+                pDir = 0; ny++; 
+            }
             else if (cmd.includes('오른쪽')) { pDir = 2; nx++; }
             else if (cmd.includes('왼쪽')) { pDir = 1; nx--; }
             else return;
@@ -173,7 +189,6 @@ __0__`.trim().split('\n');
             if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
                 px = nx; py = ny;
             } else {
-                execGameOverEffect();
                 return;
             }
 
@@ -182,14 +197,31 @@ __0__`.trim().split('\n');
 
             // 移動アニメーション完了後(0.2秒後)に判定を行う
             setTimeout(() => {
-                if (px === GOAL.x && py === GOAL.y) {
-                    gameClear();
-                } else if (mapStr[py][px] !== '0') {
+                checkGravity(0);
+            }, 200);
+        }
+
+        function checkGravity(fallDist) {
+            if (mapStr[py][px] === '0') {
+                state = 'falling';
+                setTimeout(() => {
+                    if (py + 1 < ROWS) {
+                        py++;
+                        updatePos();
+                        checkGravity(fallDist + 1);
+                    } else {
+                        execGameOverEffect();
+                    }
+                }, 200);
+            } else {
+                if (fallDist >= 2) {
                     execGameOverEffect();
+                } else if (mapStr[py][px] === 'G') {
+                    gameClear();
                 } else {
                     state = 'play';
                 }
-            }, 200);
+            }
         }
 
         function execGameOverEffect() {
@@ -241,7 +273,7 @@ __0__`.trim().split('\n');
             };
             
             recognition.onend = () => {
-                if (isListening && (state === 'play' || state === 'moving')) {
+                if (isListening && (state === 'play' || state === 'moving' || state === 'falling')) {
                     recognition.start();
                 } else {
                     document.getElementById('mic-area').classList.remove('listening');
