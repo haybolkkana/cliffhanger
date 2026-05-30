@@ -27,8 +27,7 @@
         .empty { background: transparent; }
         .ladder { background: repeating-linear-gradient(0deg, transparent, transparent 10px, #aaa 10px, #aaa 12px), linear-gradient(90deg, transparent 20%, #aaa 20%, #aaa 25%, transparent 25%, transparent 75%, #aaa 75%, #aaa 80%, transparent 80%), linear-gradient(to top, #777 0%, #777 5%, transparent 5%, transparent 100%); }
         .start-tile::after { position: absolute; color: #0ff; top: 2px; right: 4px; font-weight: bold; }
-        .goal-tile { background-image: url('fried_fish.png'); background-size: contain; background-repeat: no-repeat; background-position: center; }
-        .goal-tile::after { position: absolute; color: #fd0; top: 2px; left: 4px; font-weight: bold; }
+        .goal-tile::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('fried_fish.png'); background-size: contain; background-repeat: no-repeat; background-position: center; }
         
         #player {
             position: absolute; width: 32px; height: 32px;
@@ -84,6 +83,7 @@
     </div>
 
     <script>
+        // # 2026/05/30 18:50 Geminiで機能追加 ゴール画像の下に地面を表示するようCSSを修正
         // # 2026/05/30 18:46 Geminiで機能追加 開始前説明画面の変更、SG文字の削除、ゴール画像の配置、クリア・オーバー音の追加
         // # 2026/05/30 16:41 Geminiで機能追加 認識結果の重複カウント表示と<None>判定、iOSデバッグ用ライフサイクル可視化
         // # 2026/05/30 16:02 Geminiで機能追加 音声認識インスタンスの再構築とエラー可視化、Wake Lockの監視強化
