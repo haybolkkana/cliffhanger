@@ -32,7 +32,9 @@
         #player {
             position: absolute; width: 32px; height: 32px;
             background-image: url('pipo-nekonin001.png'); background-repeat: no-repeat;
-            transition: left 0.2s, top 0.2s; transform: translate(-50%, -50%);
+            transition: left 0.2s, top 0.2s; 
+            transform: translate(-50%, -50%) scale(2); /* 2倍に拡大 */
+            image-rendering: pixelated; /* ドットのぼやけ防止 */
             z-index: 10; display: none;
         }
         
@@ -77,10 +79,11 @@
     <div id="mic-area">
         <div id="mic-status" style="font-size: 20px; font-weight: bold;">TOUCH TO SPEAK</div>
         <div style="font-size: 12px; color: #aaa; margin-top: 8px;">위 / 아래 / 오른쪽 / 왼쪽</div>
+        <div id="debug-text" class="hidden" style="color: #0ff; font-size: 14px; margin-top: 10px;"></div>
     </div>
 
     <script>
-        // # 2026/05/30 14:29 Geminiで機能追加 スタート画面・クリア画面の実装およびZインデックス競合の修正
+        // # 2026/05/30 14:40 Geminiで機能追加 キャラクターの拡大、判定タイミングの遅延、4段階消滅エフェクト、デバッグモード
 
         const mapStr = `
 __0__
@@ -97,6 +100,8 @@ __0__`.trim().split('\n');
         let animIdx = 0, animSeq = [0, 1, 2, 1];
         let state = 'start'; 
         let recognition = null, isListening = false;
+        
+        let DEBUG_MODE = true; // デバッグモードの切り替えフラグ
 
         const mapEl = document.getElementById('map');
         let playerEl = document.createElement('div');
@@ -113,7 +118,6 @@ __0__`.trim().split('\n');
                     mapEl.appendChild(div);
                 }
             }
-            // タイル生成後にプレイヤー要素を追加し、確実に最前面へ配置する
             mapEl.appendChild(playerEl);
             updatePos();
         }
@@ -131,7 +135,7 @@ __0__`.trim().split('\n');
         }
 
         setInterval(() => {
-            if (state !== 'play') return;
+            if (state !== 'play' && state !== 'moving') return;
             animIdx = (animIdx + 1) % animSeq.length;
             updateSprite();
         }, 200);
@@ -139,6 +143,7 @@ __0__`.trim().split('\n');
         function startGame() {
             document.getElementById('screen-start').classList.add('hidden');
             playerEl.style.display = 'block';
+            playerEl.style.opacity = 1;
             state = 'play';
             initSpeech();
         }
@@ -146,7 +151,9 @@ __0__`.trim().split('\n');
         function resetGame() {
             document.getElementById('screen-over').classList.add('hidden');
             document.getElementById('screen-clear').classList.add('hidden');
+            if (DEBUG_MODE) document.getElementById('debug-text').innerText = "";
             px = START.x; py = START.y; pDir = 3;
+            playerEl.style.opacity = 1;
             state = 'play';
             updatePos();
         }
@@ -166,18 +173,40 @@ __0__`.trim().split('\n');
             if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
                 px = nx; py = ny;
             } else {
-                gameOver();
+                execGameOverEffect();
                 return;
             }
 
             updatePos();
+            state = 'moving'; // 移動アニメーション中の重複判定を防ぐ
 
-            if (px === GOAL.x && py === GOAL.y) gameClear();
-            else if (mapStr[py][px] !== '0') gameOver();
+            // 移動アニメーション完了後(0.2秒後)に判定を行う
+            setTimeout(() => {
+                if (px === GOAL.x && py === GOAL.y) {
+                    gameClear();
+                } else if (mapStr[py][px] !== '0') {
+                    execGameOverEffect();
+                } else {
+                    state = 'play';
+                }
+            }, 200);
+        }
+
+        function execGameOverEffect() {
+            state = 'end';
+            let step = 0;
+            // 4段階の消滅エフェクト
+            let effectTimer = setInterval(() => {
+                step++;
+                playerEl.style.opacity = 1 - (step * 0.25);
+                if (step >= 4) {
+                    clearInterval(effectTimer);
+                    gameOver();
+                }
+            }, 100);
         }
 
         function gameOver() {
-            state = 'end';
             document.getElementById('screen-over').classList.remove('hidden');
         }
 
@@ -202,11 +231,17 @@ __0__`.trim().split('\n');
             };
             
             recognition.onresult = e => {
-                processCmd(e.results[e.results.length - 1][0].transcript);
+                let transcript = e.results[e.results.length - 1][0].transcript;
+                if (DEBUG_MODE) {
+                    let dbg = document.getElementById('debug-text');
+                    dbg.innerText = "DEBUG: " + transcript;
+                    dbg.classList.remove('hidden');
+                }
+                processCmd(transcript);
             };
             
             recognition.onend = () => {
-                if (isListening && state === 'play') {
+                if (isListening && (state === 'play' || state === 'moving')) {
                     recognition.start();
                 } else {
                     document.getElementById('mic-area').classList.remove('listening');
