@@ -83,6 +83,7 @@
     </div>
 
     <script>
+        // # 2026/05/30 15:55 Geminiで機能追加 Screen Wake Lock APIとPage Visibility APIによるスリープ対策・復帰処理の追加
         // # 2026/05/30 15:28 Geminiで機能追加 音声コマンド「밑」の判定追加
         // # 2026/05/30 15:17 Geminiで機能追加 サイドビューパズルアクション化、重力・梯子の導入、音声認識自動起動
         // # 2026/05/30 14:40 Geminiで機能追加 キャラクターの拡大、判定タイミングの遅延、4段階消滅エフェクト、デバッグモード
@@ -102,12 +103,48 @@ __#_S`.trim().split('\n');
         let animIdx = 0, animSeq = [0, 1, 2, 1];
         let state = 'start'; 
         let recognition = null, isListening = false;
+        let wakeLock = null;
         
         let DEBUG_MODE = true; // デバッグモードの切り替えフラグ
 
         const mapEl = document.getElementById('map');
         let playerEl = document.createElement('div');
         playerEl.id = 'player';
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                if (DEBUG_MODE) console.error('Wake Lock error:', err);
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                if (state === 'play' || state === 'moving' || state === 'falling') {
+                    requestWakeLock();
+                    if (recognition && !isListening) {
+                        isListening = true;
+                        recognition.start();
+                    }
+                }
+            } else {
+                releaseWakeLock();
+                if (recognition && isListening) {
+                    isListening = false;
+                    recognition.stop();
+                }
+            }
+        });
 
         function initMap() {
             mapEl.innerHTML = '';
@@ -150,6 +187,7 @@ __#_S`.trim().split('\n');
             playerEl.style.opacity = 1;
             state = 'play';
             initSpeech();
+            requestWakeLock();
             if (recognition && !isListening) {
                 isListening = true;
                 recognition.start();
@@ -164,6 +202,11 @@ __#_S`.trim().split('\n');
             playerEl.style.opacity = 1;
             state = 'play';
             updatePos();
+            requestWakeLock();
+            if (recognition && !isListening) {
+                isListening = true;
+                recognition.start();
+            }
         }
 
         function processCmd(cmd) {
@@ -241,11 +284,13 @@ __#_S`.trim().split('\n');
 
         function gameOver() {
             document.getElementById('screen-over').classList.remove('hidden');
+            releaseWakeLock();
         }
 
         function gameClear() {
             state = 'end';
             document.getElementById('screen-clear').classList.remove('hidden');
+            releaseWakeLock();
         }
 
         function initSpeech() {
