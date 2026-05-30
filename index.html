@@ -26,8 +26,9 @@
         .ground { background: linear-gradient(to top, #777 0%, #777 5%, transparent 5%, transparent 100%); }
         .empty { background: transparent; }
         .ladder { background: repeating-linear-gradient(0deg, transparent, transparent 10px, #aaa 10px, #aaa 12px), linear-gradient(90deg, transparent 20%, #aaa 20%, #aaa 25%, transparent 25%, transparent 75%, #aaa 75%, #aaa 80%, transparent 80%), linear-gradient(to top, #777 0%, #777 5%, transparent 5%, transparent 100%); }
-        .start-tile::after { content: "S"; position: absolute; color: #0ff; top: 2px; right: 4px; font-weight: bold; }
-        .goal-tile::after { content: "G"; position: absolute; color: #fd0; top: 2px; left: 4px; font-weight: bold; }
+        .start-tile::after { position: absolute; color: #0ff; top: 2px; right: 4px; font-weight: bold; }
+        .goal-tile { background-image: url('fried_fish.png'); background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .goal-tile::after { position: absolute; color: #fd0; top: 2px; left: 4px; font-weight: bold; }
         
         #player {
             position: absolute; width: 32px; height: 32px;
@@ -63,8 +64,8 @@
         <div id="map"></div>
         
         <div id="screen-start" class="overlay">
-            <h1 style="margin-bottom: 20px;">LAVA MAZE</h1>
-            <button onclick="startGame()">Game Start</button>
+            <div style="margin-bottom: 20px; text-align: center; font-size: 1.2rem; padding: 0 20px; line-height: 1.6;">韓国語の音声でキャラクターを操作して、<br>焼き魚をとりにいこう！</div>
+            <button onclick="startGame()">開始</button>
         </div>
         <div id="screen-over" class="overlay hidden">
             <h1 style="color: #f33; margin-bottom: 20px;">Game Over</h1>
@@ -83,6 +84,7 @@
     </div>
 
     <script>
+        // # 2026/05/30 18:46 Geminiで機能追加 開始前説明画面の変更、SG文字の削除、ゴール画像の配置、クリア・オーバー音の追加
         // # 2026/05/30 16:41 Geminiで機能追加 認識結果の重複カウント表示と<None>判定、iOSデバッグ用ライフサイクル可視化
         // # 2026/05/30 16:02 Geminiで機能追加 音声認識インスタンスの再構築とエラー可視化、Wake Lockの監視強化
         // # 2026/05/30 15:55 Geminiで機能追加 Screen Wake Lock APIとPage Visibility APIによるスリープ対策・復帰処理の追加
@@ -312,12 +314,14 @@ __#_S`.trim().split('\n');
 
         function gameOver() {
             document.getElementById('screen-over').classList.remove('hidden');
+            new Audio('game_over.mp3').play();
             releaseWakeLock();
         }
 
         function gameClear() {
             state = 'end';
             document.getElementById('screen-clear').classList.remove('hidden');
+            new Audio('game_clear.mp3').play();
             releaseWakeLock();
         }
 
