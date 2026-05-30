@@ -83,6 +83,7 @@
     </div>
 
     <script>
+        // # 2026/05/30 16:02 Geminiで機能追加 音声認識インスタンスの再構築とエラー可視化、Wake Lockの監視強化
         // # 2026/05/30 15:55 Geminiで機能追加 Screen Wake Lock APIとPage Visibility APIによるスリープ対策・復帰処理の追加
         // # 2026/05/30 15:28 Geminiで機能追加 音声コマンド「밑」の判定追加
         // # 2026/05/30 15:17 Geminiで機能追加 サイドビューパズルアクション化、重力・梯子の導入、音声認識自動起動
@@ -115,9 +116,18 @@ __#_S`.trim().split('\n');
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
+                    if (DEBUG_MODE) {
+                        let dbg = document.getElementById('debug-text');
+                        dbg.innerText = "WAKE LOCK: ACQUIRED";
+                        dbg.classList.remove('hidden');
+                    }
                 }
             } catch (err) {
-                if (DEBUG_MODE) console.error('Wake Lock error:', err);
+                if (DEBUG_MODE) {
+                    let dbg = document.getElementById('debug-text');
+                    dbg.innerText = "WAKE LOCK ERROR: " + err.name;
+                    dbg.classList.remove('hidden');
+                }
             }
         }
 
@@ -132,16 +142,17 @@ __#_S`.trim().split('\n');
             if (document.visibilityState === 'visible') {
                 if (state === 'play' || state === 'moving' || state === 'falling') {
                     requestWakeLock();
+                    initSpeech(); // フリーズ回避のためにインスタンスを完全に再構築
                     if (recognition && !isListening) {
                         isListening = true;
-                        recognition.start();
+                        try { recognition.start(); } catch(e) {}
                     }
                 }
             } else {
                 releaseWakeLock();
                 if (recognition && isListening) {
                     isListening = false;
-                    recognition.stop();
+                    try { recognition.stop(); } catch(e) {}
                 }
             }
         });
@@ -294,7 +305,15 @@ __#_S`.trim().split('\n');
         }
 
         function initSpeech() {
-            if (recognition) return;
+            // 既存のインスタンスが存在する場合はリスナーを解除して安全に破棄
+            if (recognition) {
+                recognition.onend = null;
+                recognition.onerror = null;
+                recognition.onstart = null;
+                recognition.onresult = null;
+                try { recognition.stop(); } catch(e) {}
+            }
+
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SR) return alert("ブラウザが音声認識をサポートしていない。");
             
@@ -317,10 +336,19 @@ __#_S`.trim().split('\n');
                 }
                 processCmd(transcript);
             };
+
+            recognition.onerror = e => {
+                if (DEBUG_MODE) {
+                    let dbg = document.getElementById('debug-text');
+                    dbg.innerText = "MIC ERROR: " + e.error;
+                    dbg.classList.remove('hidden');
+                }
+                isListening = false;
+            };
             
             recognition.onend = () => {
                 if (isListening && (state === 'play' || state === 'moving' || state === 'falling')) {
-                    recognition.start();
+                    try { recognition.start(); } catch(e) {}
                 } else {
                     document.getElementById('mic-area').classList.remove('listening');
                     document.getElementById('mic-status').innerText = "TOUCH TO SPEAK";
@@ -332,10 +360,10 @@ __#_S`.trim().split('\n');
             if (!recognition) return;
             if (!isListening) { 
                 isListening = true; 
-                recognition.start(); 
+                try { recognition.start(); } catch(e) {}
             } else { 
                 isListening = false; 
-                recognition.stop(); 
+                try { recognition.stop(); } catch(e) {}
             }
         });
 
