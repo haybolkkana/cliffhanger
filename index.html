@@ -83,6 +83,7 @@
     </div>
 
     <script>
+        // # 2026/05/30 16:41 Geminiで機能追加 認識結果の重複カウント表示と<None>判定、iOSデバッグ用ライフサイクル可視化
         // # 2026/05/30 16:02 Geminiで機能追加 音声認識インスタンスの再構築とエラー可視化、Wake Lockの監視強化
         // # 2026/05/30 15:55 Geminiで機能追加 Screen Wake Lock APIとPage Visibility APIによるスリープ対策・復帰処理の追加
         // # 2026/05/30 15:28 Geminiで機能追加 音声コマンド「밑」の判定追加
@@ -107,26 +108,38 @@ __#_S`.trim().split('\n');
         let wakeLock = null;
         
         let DEBUG_MODE = true; // デバッグモードの切り替えフラグ
+        let lastResult = "";
+        let resultCount = 0;
 
         const mapEl = document.getElementById('map');
         let playerEl = document.createElement('div');
         playerEl.id = 'player';
+
+        function displayResult(text) {
+            if (!DEBUG_MODE) return;
+            let dbg = document.getElementById('debug-text');
+            if (text === lastResult) {
+                resultCount++;
+                dbg.innerText = text + "(" + resultCount + ")";
+            } else {
+                lastResult = text;
+                resultCount = 1;
+                dbg.innerText = text;
+            }
+            dbg.classList.remove('hidden');
+        }
 
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                     if (DEBUG_MODE) {
-                        let dbg = document.getElementById('debug-text');
-                        dbg.innerText = "WAKE LOCK: ACQUIRED";
-                        dbg.classList.remove('hidden');
+                        displayResult("WAKE LOCK: ACQUIRED");
                     }
                 }
             } catch (err) {
                 if (DEBUG_MODE) {
-                    let dbg = document.getElementById('debug-text');
-                    dbg.innerText = "WAKE LOCK ERROR: " + err.name;
-                    dbg.classList.remove('hidden');
+                    displayResult("WAKE LOCK ERROR: " + err.name);
                 }
             }
         }
@@ -208,7 +221,11 @@ __#_S`.trim().split('\n');
         function resetGame() {
             document.getElementById('screen-over').classList.add('hidden');
             document.getElementById('screen-clear').classList.add('hidden');
-            if (DEBUG_MODE) document.getElementById('debug-text').innerText = "";
+            if (DEBUG_MODE) {
+                document.getElementById('debug-text').innerText = "";
+                lastResult = "";
+                resultCount = 0;
+            }
             px = START.x; py = START.y; pDir = 3;
             playerEl.style.opacity = 1;
             state = 'play';
@@ -324,29 +341,43 @@ __#_S`.trim().split('\n');
             recognition.onstart = () => {
                 isListening = true;
                 document.getElementById('mic-area').classList.add('listening');
-                document.getElementById('mic-status').innerText = "LISTENING...";
+                document.getElementById('mic-status').innerText = "LISTENING... (START)";
+            };
+
+            recognition.onaudiostart = () => {
+                if (DEBUG_MODE) document.getElementById('mic-status').innerText = "LISTENING... (AUDIO ON)";
+            };
+
+            recognition.onspeechstart = () => {
+                if (DEBUG_MODE) document.getElementById('mic-status').innerText = "LISTENING... (SPEECH ON)";
+            };
+
+            recognition.onspeechend = () => {
+                if (DEBUG_MODE) document.getElementById('mic-status').innerText = "LISTENING... (SPEECH END)";
             };
             
             recognition.onresult = e => {
-                let transcript = e.results[e.results.length - 1][0].transcript;
-                if (DEBUG_MODE) {
-                    let dbg = document.getElementById('debug-text');
-                    dbg.innerText = "DEBUG: " + transcript;
-                    dbg.classList.remove('hidden');
-                }
+                let transcript = e.results[e.results.length - 1][0].transcript.trim();
+                displayResult(transcript);
                 processCmd(transcript);
             };
 
+            recognition.onnomatch = () => {
+                displayResult("<None>");
+            };
+
             recognition.onerror = e => {
-                if (DEBUG_MODE) {
-                    let dbg = document.getElementById('debug-text');
-                    dbg.innerText = "MIC ERROR: " + e.error;
-                    dbg.classList.remove('hidden');
+                if (e.error === 'no-speech') {
+                    displayResult("<None>");
+                } else if (DEBUG_MODE) {
+                    displayResult("MIC ERROR: " + e.error);
+                    lastResult = ""; // エラー時にカウントをリセット
                 }
                 isListening = false;
             };
             
             recognition.onend = () => {
+                if (DEBUG_MODE) document.getElementById('mic-status').innerText = "MIC ENDED";
                 if (isListening && (state === 'play' || state === 'moving' || state === 'falling')) {
                     try { recognition.start(); } catch(e) {}
                 } else {
