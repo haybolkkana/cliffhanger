@@ -215,3 +215,86 @@ __#_S`.trim().split('\n');
                     }
                 }, 200);
             } else {
+                if (fallDist >= 2) {
+                    execGameOverEffect();
+                } else if (mapStr[py][px] === 'G') {
+                    gameClear();
+                } else {
+                    state = 'play';
+                }
+            }
+        }
+
+        function execGameOverEffect() {
+            state = 'end';
+            let step = 0;
+            // 4段階の消滅エフェクト
+            let effectTimer = setInterval(() => {
+                step++;
+                playerEl.style.opacity = 1 - (step * 0.25);
+                if (step >= 4) {
+                    clearInterval(effectTimer);
+                    gameOver();
+                }
+            }, 100);
+        }
+
+        function gameOver() {
+            document.getElementById('screen-over').classList.remove('hidden');
+        }
+
+        function gameClear() {
+            state = 'end';
+            document.getElementById('screen-clear').classList.remove('hidden');
+        }
+
+        function initSpeech() {
+            if (recognition) return;
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) return alert("ブラウザが音声認識をサポートしていない。");
+            
+            recognition = new SR();
+            recognition.lang = 'ko-KR';
+            recognition.continuous = true;
+
+            recognition.onstart = () => {
+                isListening = true;
+                document.getElementById('mic-area').classList.add('listening');
+                document.getElementById('mic-status').innerText = "LISTENING...";
+            };
+            
+            recognition.onresult = e => {
+                let transcript = e.results[e.results.length - 1][0].transcript;
+                if (DEBUG_MODE) {
+                    let dbg = document.getElementById('debug-text');
+                    dbg.innerText = "DEBUG: " + transcript;
+                    dbg.classList.remove('hidden');
+                }
+                processCmd(transcript);
+            };
+            
+            recognition.onend = () => {
+                if (isListening && (state === 'play' || state === 'moving' || state === 'falling')) {
+                    recognition.start();
+                } else {
+                    document.getElementById('mic-area').classList.remove('listening');
+                    document.getElementById('mic-status').innerText = "TOUCH TO SPEAK";
+                }
+            };
+        }
+
+        document.getElementById('mic-area').addEventListener('click', () => {
+            if (!recognition) return;
+            if (!isListening) { 
+                isListening = true; 
+                recognition.start(); 
+            } else { 
+                isListening = false; 
+                recognition.stop(); 
+            }
+        });
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
