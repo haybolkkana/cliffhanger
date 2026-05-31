@@ -74,6 +74,10 @@
             <h1 style="color: #fd0; margin-bottom: 20px;">Game Clear!</h1>
             <button onclick="resetGame()">Play Again</button>
         </div>
+        <div id="screen-stage-clear" class="overlay hidden">
+            <h1 style="color: #0f0; margin-bottom: 20px;">Stage Clear</h1>
+            <button onclick="nextStage()">Next Stage</button>
+        </div>
     </div>
 
     <div id="mic-area">
@@ -83,26 +87,46 @@
     </div>
 
     <script>
+        // # 2026/05/31 15:25 Geminiで機能追加 ステージ2、3のマップデータ適用、およびマップ文字列からのスタート・ゴール位置の動的取得機能の追加
+        // # 2026/05/31 14:05 Geminiで機能追加 複数ステージ（3面）対応およびステージ移行処理の追加
         // # 2026/05/30 18:50 Geminiで機能追加 ゴール画像の下に地面を表示するようCSSを修正
         // # 2026/05/30 18:46 Geminiで機能追加 開始前説明画面の変更、SG文字の削除、ゴール画像の配置、クリア・オーバー音の追加
         // # 2026/05/30 16:41 Geminiで機能追加 認識結果の重複カウント表示と<None>判定、iOSデバッグ用ライフサイクル可視化
         // # 2026/05/30 16:02 Geminiで機能追加 音声認識インスタンスの再構築とエラー可視化、Wake Lockの監視強化
-        // # 2026/05/30 15:55 Geminiで機能追加 Screen Wake Lock APIとPage Visibility APIによるスリープ対策・復帰処理の追加
+        // # 2026/05/30 15:55 Geminiで機能追加 Screen Wake Lock APIとPage Visibility APIによるスリープ対策・復帰処理 of 追加
         // # 2026/05/30 15:28 Geminiで機能追加 音声コマンド「밑」の判定追加
         // # 2026/05/30 15:17 Geminiで機能追加 サイドビューパズルアクション化、重力・梯子の導入、音声認識自動起動
         // # 2026/05/30 14:40 Geminiで機能追加 キャラクターの拡大、判定タイミングの遅延、4段階消滅エフェクト、デバッグモード
 
-        const mapStr = `
-G____
+        const maps = [
+`G____
 0000#
 ___0#
 #0#_#
 #_000
 0#__0
-__#_S`.trim().split('\n');
+__#_S`.trim().split('\n'),
+`0G__0
+00_#_
+0_#0#
+0#__#
+0_#_0
+_#0#_
+#_S_#`.trim().split('\n'),
+`00___
+__#0#
+#_0_#
+0#0#S
+0#___
+G_0_#
+_#_#_`.trim().split('\n')
+        ];
+
+        let currentStage = 0;
+        let mapStr = maps[currentStage];
 
         const COLS = 5, ROWS = 7;
-        const START = { x: 4, y: 6 }, GOAL = { x: 0, y: 0 };
+        let START = { x: 4, y: 6 }, GOAL = { x: 0, y: 0 };
         let px = START.x, py = START.y, pDir = 3;
         let animIdx = 0, animSeq = [0, 1, 2, 1];
         let state = 'start'; 
@@ -172,6 +196,20 @@ __#_S`.trim().split('\n');
             }
         });
 
+        function updateStageData() {
+            mapStr = maps[currentStage];
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (mapStr[y][x] === 'S') {
+                        START.x = x; START.y = y;
+                    }
+                    if (mapStr[y][x] === 'G') {
+                        GOAL.x = x; GOAL.y = y;
+                    }
+                }
+            }
+        }
+
         function initMap() {
             mapEl.innerHTML = '';
             for (let y = 0; y < ROWS; y++) {
@@ -223,15 +261,32 @@ __#_S`.trim().split('\n');
         function resetGame() {
             document.getElementById('screen-over').classList.add('hidden');
             document.getElementById('screen-clear').classList.add('hidden');
+            document.getElementById('screen-stage-clear').classList.add('hidden');
             if (DEBUG_MODE) {
                 document.getElementById('debug-text').innerText = "";
                 lastResult = "";
                 resultCount = 0;
             }
+            currentStage = 0;
+            updateStageData();
             px = START.x; py = START.y; pDir = 3;
             playerEl.style.opacity = 1;
             state = 'play';
-            updatePos();
+            initMap();
+            requestWakeLock();
+            if (recognition && !isListening) {
+                isListening = true;
+                recognition.start();
+            }
+        }
+
+        function nextStage() {
+            document.getElementById('screen-stage-clear').classList.add('hidden');
+            currentStage++;
+            updateStageData();
+            px = START.x; py = START.y; pDir = 3;
+            state = 'play';
+            initMap();
             requestWakeLock();
             if (recognition && !isListening) {
                 isListening = true;
@@ -320,8 +375,12 @@ __#_S`.trim().split('\n');
 
         function gameClear() {
             state = 'end';
-            document.getElementById('screen-clear').classList.remove('hidden');
-            new Audio('game_clear.mp3').play();
+            if (currentStage < maps.length - 1) {
+                document.getElementById('screen-stage-clear').classList.remove('hidden');
+            } else {
+                document.getElementById('screen-clear').classList.remove('hidden');
+                new Audio('game_clear.mp3').play();
+            }
             releaseWakeLock();
         }
 
@@ -402,7 +461,10 @@ __#_S`.trim().split('\n');
             }
         });
 
-        window.onload = initMap;
+        window.onload = () => {
+            updateStageData();
+            initMap();
+        };
     </script>
 </body>
 </html>
