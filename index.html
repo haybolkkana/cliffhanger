@@ -87,6 +87,7 @@
     </div>
 
     <script>
+        // # 2026/06/01 09:54 Geminiで機能追加 マップデータのシャッフル機能の追加
         // # 2026/05/31 15:25 Geminiで機能追加 ステージ2、3のマップデータ適用、およびマップ文字列からのスタート・ゴール位置の動的取得機能の追加
         // # 2026/05/31 14:05 Geminiで機能追加 複数ステージ（3面）対応およびステージ移行処理の追加
         // # 2026/05/30 18:50 Geminiで機能追加 ゴール画像の下に地面を表示するようCSSを修正
@@ -98,10 +99,10 @@
         // # 2026/05/30 15:17 Geminiで機能追加 サイドビューパズルアクション化、重力・梯子の導入、音声認識自動起動
         // # 2026/05/30 14:40 Geminiで機能追加 キャラクターの拡大、判定タイミングの遅延、4段階消滅エフェクト、デバッグモード
 
-        const maps = [
+        let maps = [
 `G____
-0000#
 ___0#
+#0#0#
 #0#_#
 #_000
 0#__0
@@ -121,6 +122,15 @@ __#0#
 G_0_#
 _#_#_`.trim().split('\n')
         ];
+
+        function shuffleMaps() {
+            for (let i = maps.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                let temp = maps[i];
+                maps[i] = maps[j];
+                maps[j] = temp;
+            }
+        }
 
         let currentStage = 0;
         let mapStr = maps[currentStage];
@@ -268,6 +278,7 @@ _#_#_`.trim().split('\n')
                 resultCount = 0;
             }
             currentStage = 0;
+            shuffleMaps();
             updateStageData();
             px = START.x; py = START.y; pDir = 3;
             playerEl.style.opacity = 1;
@@ -462,6 +473,7 @@ _#_#_`.trim().split('\n')
         });
 
         window.onload = () => {
+            shuffleMaps();
             updateStageData();
             initMap();
         };
